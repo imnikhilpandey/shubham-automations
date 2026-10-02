@@ -667,9 +667,9 @@
         if (!/^\d{6}$/.test(pin)) {
             document.getElementById("pinError").textContent = "Please enter a 6-digit PIN code.";
             valid = false;
-        } else {
-            document.getElementById("pinError").textContent = "";
-        }
+        } else {if(pin==110032,110033,110036){
+           document.getElementById("pinError").textContent = "";
+          }else{document.getElementById("pinError").textContent = "not avlable at your location"; va;id= false;}
 
         return valid;
     }
