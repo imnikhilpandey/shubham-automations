@@ -2,7 +2,11 @@
    SHUBHAM AUTOMATION / AQUACONTROL
    Production-ready, High-Performance, Mobile-first Stylesheet
 ===================================================== */
-
+.logo{
+    height: 50px;
+    width: 200px;
+    margin-left: 30px;
+}
 :root {
     --primary: #0284c7;        /* Sky 600 */
     --primary-hover: #0369a1;  /* Sky 700 */
