@@ -64,7 +64,7 @@
         </div>
 
         <!-- Mobile Drawer Menu -->
-        <div class="mobile-menu-drawer hidden" id="mobileDrawer">
+        <div class="mobile-menu-drawer" id="mobileDrawer">
             <a href="#home" class="mobile-nav-link">Home</a>
             <a href="#products" class="mobile-nav-link">Products & Pricing</a>
             <a href="#installation" class="mobile-nav-link">Installation Guide</a>
@@ -618,8 +618,11 @@
                             <p>Track statuses, schedule installations, and export records.</p>
                         </div>
                         <div class="order-tools">
+                            <button type="button" class="primary-btn small" onclick="exportOrdersToExcel()">
+                                📊 Export to Excel (.xlsx)
+                            </button>
                             <button type="button" class="outline-btn small" onclick="exportOrdersToCSV()">
-                                📥 Export to Excel/CSV
+                                📄 Export CSV
                             </button>
                             <button type="button" class="delete-outline-btn small" onclick="confirmClearOrders()">
                                 🗑️ Clear Orders
@@ -729,6 +732,7 @@
     </div>
 
     <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="./app.js"></script>
 </body>
 </html>
