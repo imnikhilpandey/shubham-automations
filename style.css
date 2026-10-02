@@ -4,8 +4,8 @@
 ===================================================== */
 .logo{
     height: 50px;
-    width: 220px;
-    margin-left: 50px;
+    width: 200px;
+    margin-left: 30px;
 }
 :root {
     --primary: #0284c7;        /* Sky 600 */
@@ -251,36 +251,78 @@ a {
 .mobile-menu-toggle {
     display: none;
     flex-direction: column;
+    justify-content: center;
+    align-items: center;
     gap: 5px;
+    width: 42px;
+    height: 42px;
     padding: 8px;
     cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: var(--transition);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-menu-toggle:hover {
+    background: var(--light-bg);
 }
 
 .mobile-menu-toggle span {
-    width: 24px;
-    height: 2px;
+    display: block;
+    width: 22px;
+    height: 2.5px;
     background: var(--dark);
     border-radius: 2px;
-    transition: var(--transition);
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    transform-origin: center;
+}
+
+/* Transform 3 lines into an X when active */
+.mobile-menu-toggle.active span:nth-child(1) {
+    transform: translateY(7.5px) rotate(45deg);
+}
+
+.mobile-menu-toggle.active span:nth-child(2) {
+    opacity: 0;
+    transform: scaleX(0);
+}
+
+.mobile-menu-toggle.active span:nth-child(3) {
+    transform: translateY(-7.5px) rotate(-45deg);
 }
 
 .mobile-menu-drawer {
     display: none;
     flex-direction: column;
     background: #ffffff;
+    border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
-    padding: 15px 5%;
-    gap: 12px;
+    padding: 14px 5%;
+    gap: 6px;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
 }
 
 .mobile-nav-link {
-    padding: 10px 0;
+    display: block;
+    padding: 12px 14px;
     font-weight: 600;
-    border-bottom: 1px solid #f1f5f9;
+    color: var(--dark);
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.mobile-nav-link:hover, .mobile-nav-link:active {
+    background: var(--primary-light);
+    color: var(--primary);
 }
 
 .mobile-nav-link.seller-link {
     color: var(--primary);
+    background: #f0f9ff;
+    margin-top: 6px;
+    font-weight: 700;
 }
 
 /* ================= HERO ================= */
@@ -1798,6 +1840,13 @@ textarea {
 .order-tools {
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
+}
+
+.primary-btn.small,
+.outline-btn.small {
+    padding: 8px 16px;
+    font-size: 0.88rem;
 }
 
 .delete-outline-btn {
@@ -1962,10 +2011,10 @@ textarea {
     .footer-inner { grid-template-columns: 1fr; gap: 30px; }
 }
 
-@media (max-width: 820px) {
-    .nav-links { display: none; }
-    .mobile-menu-toggle { display: flex; }
-    .mobile-menu-drawer.active { display: flex; }
+@media (max-width: 860px) {
+    .nav-links { display: none !important; }
+    .mobile-menu-toggle { display: flex !important; }
+    .mobile-menu-drawer.active { display: flex !important; }
     .dashboard-layout { grid-template-columns: 1fr; }
     .sidebar {
         flex-direction: row;
