@@ -4,8 +4,9 @@
 ===================================================== */
 .logo{
     height: 50px;
-    width: 200px;
-    margin-left: 30px;
+    width: 220px;
+    margin-left: 5
+       0px;
 }
 :root {
     --primary: #0284c7;        /* Sky 600 */
