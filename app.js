@@ -271,6 +271,11 @@
         document.querySelectorAll(".page").forEach(page => page.classList.add("hidden"));
         const drawer = document.getElementById("mobileDrawer");
         if (drawer) drawer.classList.remove("active");
+        const menuBtn = document.getElementById("mobileMenuBtn");
+        if (menuBtn) {
+            menuBtn.classList.remove("active");
+            menuBtn.setAttribute("aria-expanded", "false");
+        }
     }
 
     function showLanding() {
@@ -672,7 +677,7 @@
     function compileOrderData() {
         const productId = document.getElementById("bookingProductId").value;
         const product = getProducts().find(p => p.id === productId);
-        if (!product) return null;
+          if (!product) return null;
 
         const customerName = document.getElementById("customerName").value.trim();
         const phone = document.getElementById("customerPhone").value.trim();
@@ -1126,6 +1131,155 @@
 
     /* ================= CSV EXPORT & BACKUP ================= */
 
+    /* ================= EXCEL (.XLSX) & CSV EXPORT ================= */
+
+    function exportOrdersToExcel() {
+        const orders = getOrders();
+        if (orders.length === 0) {
+            showToast("No orders available to export.", "info");
+            return;
+        }
+
+        // If SheetJS is loaded via CDN, generate a true modern .xlsx file
+        if (typeof XLSX !== "undefined" && XLSX.utils && XLSX.writeFile) {
+            try {
+                const sheetData = orders.map(o => ({
+                    "Order ID": o.id,
+                    "Order Date": o.date || "",
+                    "Product Name": o.productName || "",
+                    "Price (INR)": Number(o.price) || 0,
+                    "Customer Name": o.customerName || "",
+                    "Phone Number": String(o.phone || ""),
+                    "Email Address": o.email || "",
+                    "Installation Required": o.installation || "No",
+                    "Complete Address": o.address || "",
+                    "City": o.city || "",
+                    "PIN Code": String(o.pin || ""),
+                    "Order Status": o.status || "New",
+                    "Customer Notes": o.message || ""
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(sheetData);
+
+                // Auto-fit column widths
+                worksheet["!cols"] = [
+                    { wch: 14 }, // Order ID
+                    { wch: 20 }, // Date
+                    { wch: 34 }, // Product
+                    { wch: 14 }, // Price
+                    { wch: 22 }, // Customer Name
+                    { wch: 16 }, // Phone
+                    { wch: 26 }, // Email
+                    { wch: 16 }, // Installation
+                    { wch: 38 }, // Address
+                    { wch: 16 }, // City
+                    { wch: 12 }, // PIN
+                    { wch: 18 }, // Status
+                    { wch: 30 }  // Notes
+                ];
+
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Customer Orders");
+
+                const dateStr = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(workbook, `Orders_AquaControl_${dateStr}.xlsx`);
+                showToast("Orders exported to Excel (.xlsx) successfully!", "success");
+                return;
+            } catch (err) {
+                console.warn("SheetJS export failed, falling back to XML spreadsheet:", err);
+            }
+        }
+
+        // Fallback: Generate an Excel XML spreadsheet (.xls) that Excel opens natively
+        exportOrdersToExcelXML(orders);
+    }
+
+    function exportOrdersToExcelXML(orders) {
+        const dateStr = new Date().toISOString().slice(0, 10);
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#0284C7" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  </Style>
+  <Style ss:ID="Currency">
+   <NumberFormat ss:Format="&#34;₹&#34;#,##0"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Orders">
+  <Table>
+   <Column ss:Width="90"/>
+   <Column ss:Width="130"/>
+   <Column ss:Width="200"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="130"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="150"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="220"/>
+   <Column ss:Width="100"/>
+   <Column ss:Width="70"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="180"/>
+   <Row ss:Height="24">
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Order ID</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Date</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Product</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Price</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Customer Name</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Phone</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Email</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Installation</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Address</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">City</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">PIN</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Status</Data></Cell>
+    <Cell ss:StyleID="Header"><Data ss:Type="String">Notes</Data></Cell>
+   </Row>`;
+
+        orders.forEach(o => {
+            xml += `
+   <Row>
+    <Cell><Data ss:Type="String">${escapeHTML(o.id)}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.date || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.productName || "")}</Data></Cell>
+    <Cell ss:StyleID="Currency"><Data ss:Type="Number">${Number(o.price) || 0}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.customerName || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.phone || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.email || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.installation || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.address || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.city || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.pin || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.status || "")}</Data></Cell>
+    <Cell><Data ss:Type="String">${escapeHTML(o.message || "")}</Data></Cell>
+   </Row>`;
+        });
+
+        xml += `
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+        const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Orders_AquaControl_${dateStr}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast("Orders exported to Excel (.xls) successfully!", "success");
+    }
+
     function exportOrdersToCSV() {
         const orders = getOrders();
         if (orders.length === 0) {
@@ -1290,12 +1444,29 @@
         const menuBtn = document.getElementById("mobileMenuBtn");
         const drawer = document.getElementById("mobileDrawer");
         if (menuBtn && drawer) {
-            menuBtn.addEventListener("click", () => {
-                drawer.classList.toggle("active");
-                menuBtn.setAttribute("aria-expanded", drawer.classList.contains("active"));
+            menuBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const willBeActive = !drawer.classList.contains("active");
+                drawer.classList.toggle("active", willBeActive);
+                menuBtn.classList.toggle("active", willBeActive);
+                menuBtn.setAttribute("aria-expanded", willBeActive ? "true" : "false");
             });
+
             drawer.querySelectorAll("a").forEach(a => {
-                a.addEventListener("click", () => drawer.classList.remove("active"));
+                a.addEventListener("click", () => {
+                    drawer.classList.remove("active");
+                    menuBtn.classList.remove("active");
+                    menuBtn.setAttribute("aria-expanded", "false");
+                });
+            });
+
+            // Close when tapping outside the menu on mobile
+            document.addEventListener("click", (e) => {
+                if (drawer.classList.contains("active") && !drawer.contains(e.target) && !menuBtn.contains(e.target)) {
+                    drawer.classList.remove("active");
+                    menuBtn.classList.remove("active");
+                    menuBtn.setAttribute("aria-expanded", "false");
+                }
             });
         }
 
@@ -1416,6 +1587,7 @@
     window.sellerLogout = sellerLogout;
     window.saveBusinessSettings = saveBusinessSettings;
     window.changeSellerPassword = changeSellerPassword;
+    window.exportOrdersToExcel = exportOrdersToExcel;
     window.exportOrdersToCSV = exportOrdersToCSV;
     window.exportFullBackup = exportFullBackup;
     window.importFullBackup = importFullBackup;
