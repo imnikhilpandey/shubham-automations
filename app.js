@@ -51,7 +51,8 @@
         phone: "+91 98765 43210",
         whatsapp: "919876543210",
         email: "contact@shubhamautomation.in",
-        webhook: ""
+        webhook: "",
+        cloudUrl: ""
     };
 
     // Default credential hash: SHA-256("aqua_v1_" + "admin123")
@@ -393,6 +394,7 @@
         if (dashboard) dashboard.classList.remove("hidden");
         updateDashboardStats();
         showDashboardSection("overview");
+        syncOrdersFromCloud();
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -638,8 +640,7 @@
 
         const safeImg = sanitizeURL(product.image);
         const safeAnim = sanitizeURL(product.animation);
-
-        let mediaContent = `<span class="product-placeholder" aria-hidden="true">💧</span>`;
+        ontent = `<span class="product-placeholder" aria-hidden="true">💧</span>`;
         if (safeAnim) {
             mediaContent = `<video src="${safeAnim}" autoplay muted loop playsinline></video>`;
         } else if (safeImg) {
@@ -835,6 +836,11 @@
 
         const settings = getSettings();
 
+        // Cloud Database Sync: Automatically post to Firebase cloud so other devices see this order
+        if (settings.cloudUrl) {
+            sendOrderToCloud(order, settings.cloudUrl);
+        }
+
         // Optional Webhook notification (e.g. Formspree/Google Sheets)
         if (settings.webhook) {
             sendOrderWebhook(order, settings.webhook);
@@ -853,14 +859,138 @@
         const waText = encodeURIComponent(createWhatsAppMessage(order, settings));
         const waUrl = `https://wa.me/${escapeAttribute(settings.whatsapp)}?text=${waText}`;
 
+        const openWhatsApp = () => {
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (isMobile) {
+                window.location.href = waUrl;
+            } else {
+                window.open(waUrl, "_blank", "noopener,noreferrer");
+            }
+        };
+
         const successWhatsAppBtn = document.getElementById("successWhatsAppAction");
-        successWhatsAppBtn.onclick = () => window.open(waUrl, "_blank", "noopener,noreferrer");
+        if (successWhatsAppBtn) successWhatsAppBtn.onclick = openWhatsApp;
 
         document.getElementById("successModal").classList.remove("hidden");
 
         // If user explicitly chose WhatsApp submission
         if (sendViaWhatsApp) {
-            window.open(waUrl, "_blank", "noopener,noreferrer");
+            openWhatsApp();
+        }
+    }
+
+    /* ================= MULTI-DEVICE CLOUD SYNC ================= */
+
+    async function sendOrderToCloud(order, cloudUrl) {
+        if (!cloudUrl) return;
+        try {
+            const cleanUrl = cloudUrl.replace(/\/$/, "");
+            const res = await fetch(`${cleanUrl}/orders.json`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(order)
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.name) {
+                    order.firebaseKey = data.name;
+                    const orders = getOrders();
+                    const updated = orders.map(o => (o.id === order.id ? Object.assign({}, o, { firebaseKey: data.name }) : o));
+                    setStorage("aqua_orders", updated);
+                }
+            }
+        } catch (err) {
+            console.warn("Cloud order submission error:", err);
+        }
+    }
+
+    async function syncOrdersFromCloud(showFeedback = false) {
+        const settings = getSettings();
+        if (!settings.cloudUrl) {
+            if (showFeedback) {
+                showToast("No Cloud Database URL configured. Enter your Firebase URL in Settings.", "info");
+            }
+            return;
+        }
+
+        try {
+            if (showFeedback) showToast("Connecting to cloud database...", "info", 1500);
+            const cleanUrl = settings.cloudUrl.replace(/\/$/, "");
+            const res = await fetch(`${cleanUrl}/orders.json`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data) {
+                    const cloudOrders = Object.keys(data).map(key => ({
+                        ...data[key],
+                        firebaseKey: key
+                    }));
+                    cloudOrders.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                    saveOrders(cloudOrders);
+                    if (showFeedback) {
+                        showToast(`Synced ${cloudOrders.length} order(s) from cloud!`, "success");
+                    }
+                    return cloudOrders;
+                } else {
+                    if (showFeedback) showToast("Cloud database is currently empty.", "info");
+                }
+            } else {
+                if (showFeedback) showToast(`Cloud error: HTTP ${res.status}. Check database rules.`, "error");
+            }
+        } catch (err) {
+            console.warn("Cloud sync error:", err);
+            if (showFeedback) showToast("Could not sync from cloud: " + err.message, "error");
+        }
+    }
+
+    async function testCloudConnection() {
+        const urlInput = document.getElementById("settingCloudUrl");
+        const statusEl = document.getElementById("cloudStatusIndicator");
+        const url = urlInput ? urlInput.value.trim() : "";
+
+        if (!url) {
+            showToast("Please enter a Firebase Database URL first.", "error");
+            if (statusEl) statusEl.textContent = "❌ Please enter a URL first.";
+            return;
+        }
+
+        const cleanUrl = url.replace(/\/$/, "");
+        if (statusEl) statusEl.textContent = "⏳ Testing connection...";
+
+        try {
+            const res = await fetch(`${cleanUrl}/orders.json?shallow=true`);
+            if (res.ok) {
+                if (statusEl) {
+                    statusEl.innerHTML = `<span style="color:var(--green);">✅ Connected successfully to Firebase!</span>`;
+                }
+                showToast("Connected to Firebase database successfully!", "success");
+            } else {
+                if (statusEl) {
+                    statusEl.innerHTML = `<span style="color:var(--red);">⚠️ HTTP ${res.status}. Ensure database rules allow read/write.</span>`;
+                }
+                showToast(`Firebase returned HTTP ${res.status}. Please check your database rules.`, "error");
+            }
+        } catch (err) {
+            if (statusEl) {
+                statusEl.innerHTML = `<span style="color:var(--red);">❌ Connection failed: ${escapeHTML(err.message)}</span>`;
+            }
+            showToast("Connection failed. Ensure the URL is valid and Firebase allows access.", "error");
+        }
+    }
+
+    async function saveCloudDatabaseSettings(e) {
+        e.preventDefault();
+        const urlInput = document.getElementById("settingCloudUrl");
+        const cloudUrl = urlInput ? urlInput.value.trim() : "";
+
+        const settings = getSettings();
+        settings.cloudUrl = cloudUrl;
+        saveSettings(settings);
+
+        if (cloudUrl) {
+            showToast("Cloud URL saved. Syncing orders...", "info");
+            await syncOrdersFromCloud(true);
+        } else {
+            showToast("Cloud database disconnected. Orders will only be stored locally.", "info");
         }
     }
 
@@ -885,8 +1015,14 @@
         }
 
         if (section === "products") renderSellerProducts();
-        if (section === "orders") renderSellerOrders();
-        if (section === "overview") updateDashboardStats();
+        if (section === "orders") {
+            renderSellerOrders();
+            syncOrdersFromCloud();
+        }
+        if (section === "overview") {
+            updateDashboardStats();
+            syncOrdersFromCloud();
+        }
     }
 
     function updateDashboardStats() {
@@ -1194,22 +1330,51 @@
 
     function updateOrderStatus(orderId, newStatus) {
         const orders = getOrders();
+        const target = orders.find(o => o.id === orderId);
         const updated = orders.map(o => (o.id === orderId ? Object.assign({}, o, { status: newStatus }) : o));
         saveOrders(updated);
+
+        const settings = getSettings();
+        if (settings.cloudUrl && target && target.firebaseKey) {
+            const cleanUrl = settings.cloudUrl.replace(/\/$/, "");
+            fetch(`${cleanUrl}/orders/${target.firebaseKey}.json`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: newStatus })
+            }).catch(e => console.warn("Cloud status update error:", e));
+        }
+
         showToast(`Order ${orderId} updated to "${newStatus}".`, "info");
     }
 
     function deleteOrder(orderId) {
         if (!confirm(`Delete order ${orderId}? This cannot be undone.`)) return;
         const orders = getOrders();
+        const target = orders.find(o => o.id === orderId);
         const updated = orders.filter(o => o.id !== orderId);
         saveOrders(updated);
+
+        const settings = getSettings();
+        if (settings.cloudUrl && target && target.firebaseKey) {
+            const cleanUrl = settings.cloudUrl.replace(/\/$/, "");
+            fetch(`${cleanUrl}/orders/${target.firebaseKey}.json`, {
+                method: "DELETE"
+            }).catch(e => console.warn("Cloud order delete error:", e));
+        }
+
         showToast("Order deleted.", "info");
     }
 
     function confirmClearOrders() {
-        if (!confirm("Are you sure you want to clear ALL orders? Make sure you have exported a CSV backup first.")) return;
+        if (!confirm("Are you sure you want to clear ALL orders? Make sure you have exported an Excel backup first.")) return;
         saveOrders([]);
+
+        const settings = getSettings();
+        if (settings.cloudUrl) {
+            const cleanUrl = settings.cloudUrl.replace(/\/$/, "");
+            fetch(`${cleanUrl}/orders.json`, { method: "DELETE" }).catch(e => console.warn("Cloud clear error:", e));
+        }
+
         showToast("All orders cleared.", "info");
     }
 
@@ -1497,6 +1662,17 @@
             document.getElementById("settingEmail").value = s.email;
             document.getElementById("settingWebhook").value = s.webhook || "";
         }
+
+        const settingCloudUrl = document.getElementById("settingCloudUrl");
+        if (settingCloudUrl) {
+            settingCloudUrl.value = s.cloudUrl || "";
+            const statusEl = document.getElementById("cloudStatusIndicator");
+            if (statusEl) {
+                statusEl.innerHTML = s.cloudUrl
+                    ? `<span style="color:var(--green);">🟢 Connected to Firebase Cloud</span>`
+                    : `<span style="color:var(--text-muted);">⚪ Using Local Storage (Not synced across devices)</span>`;
+            }
+        }
     }
 
     function saveBusinessSettings(e) {
@@ -1678,4 +1854,7 @@
     window.restoreDemoProducts = restoreDemoProducts;
     window.filterSellerOrders = filterSellerOrders;
     window.confirmClearOrders = confirmClearOrders;
+    window.syncOrdersFromCloud = syncOrdersFromCloud;
+    window.testCloudConnection = testCloudConnection;
+    window.saveCloudDatabaseSettings = saveCloudDatabaseSettings;
 })();
